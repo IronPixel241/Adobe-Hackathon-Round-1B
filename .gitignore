@@ -1,0 +1,51 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.env/
+.venv/
+env/
+venv/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# macOS system files
+.DS_Store
+
+# VS Code project files
+.vscode/
+
+# Model and training output
+model/
+train_model/__pycache__/
+*.h5
+*.pth
+*.pt
+*.joblib
+*.pkl
+
+# Output files
+output/
+*.json
+
+# PDF inputs
+input/*.pdf
+
+# Log files
+*.log
+
+# OS or Python metadata
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.swo
+~$*
