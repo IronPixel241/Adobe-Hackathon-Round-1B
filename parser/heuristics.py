@@ -143,3 +143,18 @@ def filter_heading_candidates(blocks):
             candidates.append(dict(b))  # shallow copy
 
     return candidates
+
+
+# parser/heuristics.py (add this function)
+import numpy as np
+def compute_font_thresholds(blocks):
+    sizes = [round(b["font_size"]) for b in blocks if b.get("font_size")]
+    if not sizes:
+        return {"H1": 999, "H2": 998, "H3": 997}
+    
+    common_sizes = sorted(set(sizes), reverse=True)
+    return {
+        "H1": np.percentile(sizes, 95),
+        "H2": np.percentile(sizes, 85),
+        "H3": np.percentile(sizes, 70)
+    }

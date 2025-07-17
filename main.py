@@ -3,8 +3,8 @@
 import os
 import json
 from parser.extract_text_blocks import extract_text_blocks
-from parser.heuristics import filter_heading_candidates
-from parser.heading_classifier import classify_heading
+from parser.heuristics import filter_heading_candidates,compute_font_thresholds
+from parser.heading_classifier import classify_with_local_context
 from parser.hierarchy_builder import build_hierarchy
 
 INPUT_DIR = "input"
@@ -17,10 +17,13 @@ def process_pdf(pdf_path):
     # Step 2: Apply heuristics to filter potential headings
     candidate_blocks = filter_heading_candidates(blocks)
 
-    # Step 3: Classify headings into H1-H4
-    for block in candidate_blocks:
-        block["level"] = classify_heading(block["text"])
+# Compute font thresholds
+    global_thresholds = compute_font_thresholds(candidate_blocks)
 
+    # Classify each block
+    classify_with_local_context(candidate_blocks)
+
+   
     # Step 4: Build structured JSON output
     hierarchy = build_hierarchy(candidate_blocks)
     return hierarchy

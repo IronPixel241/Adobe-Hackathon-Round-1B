@@ -1,0 +1,222 @@
+
+--- Page 1 ---
+[Page 1] (11.7pt, Arial,Bold, Bold, Normal)
+Text : Application form for grant of LTC advance
+BBox : (199.86000061035156, 106.07836151123047, 437.190673828125, 119.10208129882812)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 1.
+BBox : (70.0199966430664, 135.93528747558594, 82.12254333496094, 147.68702697753906)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Name of the Government Servant
+BBox : (95.99856567382812, 132.9924774169922, 243.4400634765625, 144.7442169189453)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 2.
+BBox : (70.0199966430664, 154.05015563964844, 82.12254333496094, 165.80189514160156)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Designation
+BBox : (95.99856567382812, 151.0488739013672, 149.32675170898438, 162.8006134033203)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 3.
+BBox : (70.0199966430664, 180.9252166748047, 82.12254333496094, 192.6769561767578)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Date of entering the Central Government
+BBox : (95.99856567382812, 169.1637420654297, 296.01995849609375, 180.9154815673828)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Service
+BBox : (95.99856567382812, 186.74266052246094, 129.7297821044922, 198.49440002441406)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 4.
+BBox : (70.0199966430664, 207.80027770996094, 82.12254333496094, 219.55201721191406)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : PAY + SI + NPA
+BBox : (95.99856567382812, 204.8574676513672, 168.8944854736328, 216.6092071533203)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 5.
+BBox : (70.0199966430664, 225.91514587402344, 82.12254333496094, 237.66688537597656)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Whether permanent or temporary
+BBox : (95.99856567382812, 222.9138641357422, 244.10366821289062, 234.6656036376953)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 6.
+BBox : (70.0199966430664, 241.09690856933594, 82.12254333496094, 252.84864807128906)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Home Town as recorded in the Service Book
+BBox : (95.99856567382812, 241.09690856933594, 289.5272216796875, 252.84864807128906)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 7.
+BBox : (70.0199966430664, 265.0389404296875, 82.12254333496094, 276.7906799316406)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Whether wife / husband is employed and if
+BBox : (95.99856567382812, 253.27745056152344, 295.9496765136719, 265.0292053222656)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : so whether entitled to LTC
+BBox : (95.99856567382812, 270.85638427734375, 212.8251190185547, 282.6081237792969)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 8.
+BBox : (70.0199966430664, 309.5611572265625, 82.12254333496094, 321.3128967285156)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Whether the concession is to be availed for
+BBox : (95.99856567382812, 288.98095703125, 295.94781494140625, 300.7326965332031)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : visiting home town and if so block for which
+BBox : (95.99856567382812, 306.55987548828125, 296.0480651855469, 318.3116149902344)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : LTC is to be availed.
+BBox : (95.99856567382812, 324.19720458984375, 186.0504608154297, 335.948974609375)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 9.
+BBox : (70.0199966430664, 362.833740234375, 82.12254333496094, 374.58551025390625)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : (a) If the concession is to visit anywhere in
+BBox : (95.99856567382812, 342.25360107421875, 296.0063171386719, 354.0053405761719)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : India, the place to be visited.
+BBox : (95.99856567382812, 359.89093017578125, 224.38401794433594, 371.6427001953125)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : (b) Block for which to be availed.
+BBox : (95.99856567382812, 377.4698486328125, 241.2914581298828, 389.2215881347656)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 10.
+BBox : (70.0199966430664, 416.174560546875, 88.30438995361328, 427.92633056640625)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Single
+BBox : (95.99856567382812, 395.59442138671875, 124.84394073486328, 407.3461608886719)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : rail
+BBox : (136.138671875, 395.59442138671875, 152.3056182861328, 407.3461608886719)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : fare/bus
+BBox : (163.60035705566406, 395.59442138671875, 202.4123077392578, 407.3461608886719)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : fare
+BBox : (213.70704650878906, 395.59442138671875, 233.50669860839844, 407.3461608886719)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : from
+BBox : (244.8404083251953, 395.59442138671875, 267.9424133300781, 407.3461608886719)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : the
+BBox : (279.2371520996094, 395.59442138671875, 296.081298828125, 407.3461608886719)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : headquarters to home town/place of visit by
+BBox : (95.99856567382812, 413.17327880859375, 296.0082092285156, 424.925048828125)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : shortest route.
+BBox : (95.99856567382812, 430.752197265625, 161.98764038085938, 442.5039367675781)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 11.
+BBox : (70.0199966430664, 498.6121826171875, 88.30438995361328, 510.3639221191406)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Persons in respect of whom LTC is proposed to be availed.
+BBox : (95.99856567382812, 448.93524169921875, 350.760986328125, 460.6869812011719)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : S.No
+BBox : (95.99856567382812, 464.05853271484375, 121.62633514404297, 475.810302734375)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : Name
+BBox : (211.41220092773438, 464.05853271484375, 242.72096252441406, 475.810302734375)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : Age
+BBox : (343.4770812988281, 464.05853271484375, 364.9440002441406, 475.810302734375)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : Relationship
+BBox : (444.5849609375, 464.05853271484375, 508.57159423828125, 475.810302734375)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 1.
+BBox : (103.62838745117188, 476.23907470703125, 115.7309341430664, 487.9908142089844)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 2.
+BBox : (103.62838745117188, 488.47802734375, 115.7309341430664, 500.2297668457031)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 3.
+BBox : (103.62838745117188, 500.65850830078125, 115.7309341430664, 512.4102783203125)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 4.
+BBox : (103.62838745117188, 512.9559326171875, 115.7309341430664, 524.7076416015625)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 5.
+BBox : (103.62838745117188, 529.4532470703125, 115.7309341430664, 541.2049560546875)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 6.
+BBox : (103.62838745117188, 541.6921997070312, 115.7309341430664, 553.4439086914062)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : 12.
+BBox : (70.02969360351562, 567.0081787109375, 88.3140869140625, 578.7598876953125)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Amount of advance required.
+BBox : (96.00826263427734, 561.1322631835938, 223.99024963378906, 572.8839721679688)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : Rs.
+BBox : (304.39227294921875, 561.1322631835938, 320.7657775878906, 572.8839721679688)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : I declare that the particulars furnished above are true and correct to the best of my knowledge.  I
+BBox : (105.07057189941406, 596.8357543945312, 573.1749267578125, 608.5874633789062)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : undertake to produce the tickets for the outward journey within ten days of receipt of the advance.
+BBox : (70.0296630859375, 608.5387573242188, 499.6590270996094, 620.2904663085938)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : In the event of cancellation of the journey or if I fail to produce the tickets within ten days of receipt of
+BBox : (105.08027648925781, 632.061767578125, 573.1671142578125, 643.8134765625)
+
+[Page 1] (9.7pt, Tahoma, Regular, Normal)
+Text : advance, I undertake to refund the entire advance in one lump sum.
+BBox : (70.0394287109375, 643.8232421875, 367.65570068359375, 655.574951171875)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : Date
+BBox : (70.0394287109375, 678.9810180664062, 95.879638671875, 690.7327270507812)
+
+[Page 1] (9.7pt, Tahoma-Bold, Bold, Normal)
+Text : Signature of Government Servant.
+BBox : (403.0445556640625, 690.7425537109375, 572.97509765625, 702.4942626953125)
+

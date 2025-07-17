@@ -6,11 +6,15 @@ def build_hierarchy(blocks):
         title = top_title_block['text'].strip()
     else:
         title = ""
-
+    seen = set()
     outline = []
     for block in blocks:
         heading_level = block.get("level")
-        if heading_level in ["H1", "H2", "H3", "H4"]:  # H4 now included
+        if heading_level in ["H1", "H2", "H3", "H4"]:
+            key=block['text'].strip();
+            if(key in seen):
+              continue  
+            seen.add(key)
             outline.append({
                 "level": heading_level,
                 "text": block["text"].strip(),  # keep trailing punctuation

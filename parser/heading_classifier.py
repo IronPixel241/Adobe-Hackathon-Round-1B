@@ -1,61 +1,58 @@
 import re
 
-def classify_heading(text):
+def classify_with_local_context(blocks):
     """
-    Balanced heading classifier:
-    - Keeps real headings (sections/subsections)
-    - Filters out boilerplate/legal/footer text
+    Assign heading levels based on local font size contrast and boldness.
+    Modifies blocks in-place.
     """
-    t = text.strip()
-    if not t:
-        return None
+    for i, block in enumerate(blocks):
+        text = block.get("text", "").strip()
+        font_size = block.get("font_size")
+        if not text or font_size is None:
+            block["level"] = None
+            continue
 
-    # Normalize
-    lower = t.lower()
+        # Heuristic skips
+        lower = text.lower()
+        if (
+            re.match(r'^\d+[.]?$', text) or
+            any(x in lower for x in ["copyright", "page", "version", "remarks", "date"]) or
+            re.match(r'^\d{1,2}\s?[a-z]{3,9}\s?\d{4}$', lower) or
+            len(text.split()) > 20 or len(text) > 150
+        ):
+            block["level"] = None
+            continue
 
-    # Exclude obvious non-headings
-    if any(x in lower for x in ["copyright", "page", "version", "remarks", "date"]):
-        return None
-    if re.match(r'^\d{1,2}\s?[a-z]{3,9}\s?\d{4}$', lower):  # date like "18 JUNE 2013"
-        return None
+        prev = blocks[i - 1] if i > 0 else None
+        next_ = blocks[i + 1] if i + 1 < len(blocks) else None
+        prev_size = prev["font_size"] if prev else 0
+        next_size = next_["font_size"] if next_ else 0
 
-    # Drop overly long candidates (likely body text)
-    if len(t.split()) > 20 or len(t) > 150:
-        return None
+        is_larger_than_prev = font_size > prev_size
+        is_larger_than_next = font_size > next_size
+        is_bold = block.get("bold", False)
+        all_caps = text.isupper()
 
-    # 1. Numeric structure-based classification
-    if re.match(r'^\d+\.\s', t):
-        return "H1"
-    if re.match(r'^\d+\.\d+\s', t):
-        return "H2"
-    if re.match(r'^\d+\.\d+\.\d+\s', t):
-        return "H3"
-    if re.match(r'^\d+\.\d+\.\d+\.\d+\s', t):
-        return "H4"
+        heading_candidate = (
+            (is_larger_than_prev and is_larger_than_next) or
+            (is_bold and len(text.split()) <= 6) or
+            all_caps or
+            text.endswith(":")
+        )
 
-    # 2. Lines ending with colon (principles, labels)
-    if t.endswith(":"):
-        if len(t.split()) <= 4:
-            return "H3"
+        if not heading_candidate:
+            block["level"] = None
+            continue
+
+        # Estimate level based on size gap
+        avg_neighbor_size = (prev_size + next_size) / 2 if (prev_size and next_size) else min(prev_size, next_size)
+        size_diff = font_size - avg_neighbor_size
+
+        if size_diff >= 4:
+            block["level"] = "H1"
+        elif size_diff >= 2:
+            block["level"] = "H2"
         else:
-            return "H2"
+            block["level"] = "H3"
 
-    # 3. Keyword-based signals
-    if lower in ["overview", "introduction", "revision history"]:
-        return "H2"
-    if "summary" in lower:
-        return "H2"
-    if "background" in lower:
-        return "H2"
-    if "timeline" in lower or "milestone" in lower:
-        return "H3"
-
-    # 4. Special Ontario-style
-    if re.match(r'^for each .* it could mean:', lower):
-        return "H4"
-
-    # 5. Fallback for likely headings: short & NOT boilerplate
-    if 2 <= len(t.split()) <= 6 and not any(word in lower for word in ["board", "international", "tester"]):
-        return "H2"
-
-    return None
+    return blocks
