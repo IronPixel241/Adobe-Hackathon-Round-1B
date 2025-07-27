@@ -1,43 +1,54 @@
-# Adobe Hackathon 2025 - Round 1B Submission
+Adobe Hackathon 2025 - Persona-Driven Document Intelligence
+This project is a persona-driven document intelligence system built for the "Connecting the Dots" Hackathon. It analyzes a collection of PDF documents to extract and rank the most relevant sections based on a user's role and specific task.
 
-[cite_start]This project is a persona-driven document intelligence system built for the "Connecting the Dots" Hackathon[cite: 5, 27].
 
-## [cite_start]Approach Explanation [cite: 89, 158]
+Key Features
+Hybrid AI Approach: Combines the speed and breadth of semantic vector search with the deep comprehension of a lightweight LLM for state-of-the-art relevance ranking.
 
-Our system analyzes a collection of PDF documents to extract the most relevant sections based on a given user persona and their specific "job-to-be-done."
 
-1.  **Section Extraction**: We use the PyMuPDF library to parse text from each PDF. A custom scoring algorithm identifies potential headings based on features like title case, capitalization, and structure. [cite_start]This allows us to dynamically segment documents without relying on fixed font sizes[cite: 94].
-2.  **Semantic Ranking**: We employ a `all-MiniLM-L6-v2` sentence-transformer model to generate embeddings for the job description, section titles, and section content. A weighted combination of title and content similarity scores is used to rank all extracted sections.
-3.  **Intelligent Verification & Refinement**: A lightweight LLM (`google/flan-t5-small`) acts as a final filter. It verifies if a top-ranked section is genuinely aligned with the user's goal. For the final output, a summary of the most relevant sentences from each top-ranked section is generated to provide a concise `refined_text`.
+Performance-Aware Logic: Intelligently applies the most computationally expensive LLM checks only to the top-ranked candidates, ensuring the solution stays well within the strict 60-second execution limit.
 
-[cite_start]This solution is designed to run completely offline [cite: 60] [cite_start]and respects all model size ($\le1GB$) and performance constraints[cite: 152, 153].
 
-## [cite_start]Libraries and Models Used [cite: 90]
+Dynamic Document Parsing: Utilizes a custom scoring algorithm to identify document structure, making the solution robust and adaptable to PDFs without relying on brittle rules like font size.
 
-* **Libraries**: PyMuPDF, NumPy, Sentence-Transformers, PyTorch (CPU), Transformers
-* **Retrieval Model**: `all-MiniLM-L6-v2`
-* **LLM Model**: `google/flan-t5-small`
+Approach Explanation 
 
-## [cite_start]How to Build and Run [cite: 93]
 
-### Build the Docker Image
+Our system follows a multi-stage process to deliver highly relevant, persona-driven insights:
 
+Section Extraction: We first parse text from each PDF using the PyMuPDF library. A custom scoring algorithm then analyzes text characteristics (e.g., title case, length, structure) to dynamically segment the documents into logical sections and subsections.
+
+Semantic Ranking: We employ the all-MiniLM-L6-v2 sentence-transformer model to generate vector embeddings for the persona's job description, as well as for the title and content of every extracted section. By calculating the cosine similarity, we produce a ranked list of all sections based on their semantic relevance to the user's task.
+
+Intelligent Verification: To refine the top results without sacrificing performance, a lightweight LLM (google/flan-t5-small) performs a final verification step. To remain fast, this check is only applied to the Top 5 semantically-ranked sections. It acts as an expert reviewer, confirming their alignment with the user's goal and filtering out any nuanced mismatches.
+
+This hybrid strategy ensures our solution is not only accurate and intelligent but also fully compliant with the hackathon's offline and performance constraints.
+
+
+Libraries and Models Used 
+
+Libraries: PyMuPDF, NumPy, Sentence-Transformers, PyTorch (CPU), Transformers
+
+Retrieval Model: all-MiniLM-L6-v2
+
+LLM Model: google/flan-t5-small
+
+How to Build and Run 
+
+Build the Docker Image
 From the root directory, run the following command:
 
-```bash
+Bash
+
 docker build -t my-adobe-solution:1b .
-```
+Run the Container
+Place your input PDFs and input.json file into a local directory (e.g., ./local_input). Create an empty local output directory (e.g., ./local_output). Then, run the container using the specified command format:
 
-### Run the Container
+Bash
 
-Place your input PDFs and `input.json` file into a local directory (e.g., `./local_input`). Create an empty local output directory (e.g., `./local_output`). Then, run the container using the specified command format:
-
-```bash
 docker run --rm \
   -v "$(pwd)/local_input:/app/input" \
   -v "$(pwd)/local_output:/app/output" \
   --network none \
   my-adobe-solution:1b
-```
-
-The results will be generated in `local_output/result.json`.
+The results will be generated in local_output/result.json.
