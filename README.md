@@ -46,16 +46,15 @@ Given a **collection of related PDFs**, a **persona** (e.g., Researcher, Student
 ## 📂 Directory Structure
 
 ```
-├── input/                  # Place all input PDFs and input.json here
-├── output/                 # Results (JSON) will be generated here
-├── app/
-│   ├── segmenter.py        # Section detection and parsing logic
-│   ├── ranker.py           # Semantic ranking using vector search
-│   ├── verifier.py         # LLM-based final verification
+├── local_input/ 
+│   └── input.json          # place the input.json file here
+├── local_output/           # Results (JSON) will be generated here
+├── src/
+│   └── init.py             # intialization
 │   └── main.py             # Pipeline orchestration
-├── models/                 # Cached sentence-transformers and LLM models
 ├── Dockerfile              # Dockerfile to containerize the solution
 ├── requirements.txt
+├── download_models.py      # locally caches the model while running docker build (no network usage during docker run)
 └── README.md               # (You're reading it!)
 ```
 
