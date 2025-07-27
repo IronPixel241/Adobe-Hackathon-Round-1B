@@ -1,0 +1,6 @@
+pymupdf
+scikit-learn 
+transformers 
+torch 
+numpy
+accelerate
