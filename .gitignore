@@ -30,8 +30,12 @@ train_model/__pycache__/
 # Output files
 output/
 *.json
+# Ignore all PDFs...
+*.pdf
+# ...BUT do NOT ignore PDFs inside the 'pdf/' directory
+!pdf/*.pdf
 
-# PDF inputs
+# PDF inputs (this rule will still ignore PDFs in the 'input' folder)
 input/*.pdf
 
 # Log files

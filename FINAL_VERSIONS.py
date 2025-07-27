@@ -5,55 +5,23 @@ import numpy as np
 import re
 from sentence_transformers import SentenceTransformer, util
 import datetime
+import time # CHANGE: Imported for timing
 
-# --- INPUT TEST CASE: Swap this out to test different scenarios ---
-# You can replace this with the "ML Researcher" or other test cases.
+# --- DICTIONARY TO STORE TIMING RESULTS ---
+processing_times = {}
 
-input_data = {
-    "challenge_info": {
-        "challenge_id": "round_1b_002",
-        "test_case_name": "travel_planner",
-        "description": "France Travel"
-    },
-    "documents": [
-        {
-            "filename": "South of France - Cities.pdf",
-            "title": "South of France - Cities"
-        },
-        {
-            "filename": "South of France - Cuisine.pdf",
-            "title": "South of France - Cuisine"
-        },
-        {
-            "filename": "South of France - History.pdf",
-            "title": "South of France - History"
-        },
-        {
-            "filename": "South of France - Restaurants and Hotels.pdf",
-            "title": "South of France - Restaurants and Hotels"
-        },
-        {
-            "filename": "South of France - Things to Do.pdf",
-            "title": "South of France - Things to Do"
-        },
-        {
-            "filename": "South of France - Tips and Tricks.pdf",
-            "title": "South of France - Tips and Tricks"
-        },
-        {
-            "filename": "South of France - Traditions and Culture.pdf",
-            "title": "South of France - Traditions and Culture"
-        }
-    ],
-    "persona": {
-        "role": "Travel Planner"
-    },
-    "job_to_be_done": {
-        "task": "Plan a trip of 4 days for a group of 10 college friends."
-    }
-}
+# --- START OF TIMED OPERATIONS ---
+main_start_time = time.perf_counter()
 
-
+# --- CHANGE 1: LOAD INPUT FROM A JSON FILE ---
+start_time = time.perf_counter()
+try:
+    with open("input.json", "r", encoding='utf-8') as f:
+        input_data = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError) as e:
+    print(f"❌ Error reading input.json: {e}")
+    exit()
+processing_times["input_loading_s"] = time.perf_counter() - start_time
 
 
 # --- CONFIGURATION ---
@@ -166,22 +134,38 @@ def get_refined_summary(section_content, model, job_embedding, top_k=3):
 
 
 # --- MAIN PROCESSING LOGIC ---
+
+# Timing: Model loading
+start_time = time.perf_counter()
 model = SentenceTransformer('all-MiniLM-L6-v2')
+processing_times["model_loading_s"] = time.perf_counter() - start_time
+
 job_text = input_data["job_to_be_done"]["task"]
+
+# Timing: Job embedding
+start_time = time.perf_counter()
 job_embedding = model.encode(job_text, convert_to_tensor=True)
+processing_times["job_embedding_s"] = time.perf_counter() - start_time
 
 all_sections = []
+# Timing: Document parsing and sectioning
+start_time = time.perf_counter()
 for doc in input_data["documents"]:
     pages_text = extract_pdf_text_by_page(doc["filename"])
     if pages_text:
         all_sections.extend(extract_dynamic_sections(pages_text, doc["filename"]))
+processing_times["pdf_parsing_and_sectioning_s"] = time.perf_counter() - start_time
+
 
 if not all_sections:
     print("❌ No valid sections could be extracted. Exiting.")
     exit()
 
+# Timing: Content embedding and similarity scoring
+start_time = time.perf_counter()
 titles = [sec["section_title"] for sec in all_sections]
 contents = [sec["content"] for sec in all_sections]
+
 title_embeddings = model.encode(titles, convert_to_tensor=True)
 content_embeddings = model.encode(contents, convert_to_tensor=True)
 title_similarities = util.cos_sim(job_embedding, title_embeddings)[0]
@@ -189,6 +173,7 @@ content_similarities = util.cos_sim(job_embedding, content_embeddings)[0]
 
 combined_scores = (TITLE_WEIGHT * title_similarities) + (CONTENT_WEIGHT * content_similarities)
 ranked_indices = np.argsort(-combined_scores)
+processing_times["content_embedding_and_scoring_s"] = time.perf_counter() - start_time
 
 output = {
     "metadata": {
@@ -200,6 +185,8 @@ output = {
     "extracted_sections": [], "subsection_analysis": []
 }
 
+# Timing: Summarization of relevant sections
+start_time = time.perf_counter()
 final_rank = 1
 for idx in ranked_indices:
     if final_rank > 15: break
@@ -215,9 +202,22 @@ for idx in ranked_indices:
             "refined_text": refined_text
         })
         final_rank += 1
+processing_times["summarization_s"] = time.perf_counter() - start_time
 
+# --- END OF TIMED OPERATIONS ---
+processing_times["total_runtime_s"] = time.perf_counter() - main_start_time
+
+
+# --- CHANGE 2: WRITE PROCESSING TIMES TO A SEPARATE JSON FILE ---
+# This is done before writing the main output, so its own I/O time is not counted.
+with open("processing_results.json", "w", encoding='utf-8') as f:
+    json.dump(processing_times, f, indent=4)
+print(f"📊 Performance metrics saved to processing_results.json")
+
+
+# --- FINAL OUTPUT ---
 output_file = f"output_{input_data['challenge_info']['test_case_name']}.json"
 with open(output_file, "w", encoding='utf-8') as f:
     json.dump(output, f, indent=4)
 
-print(f"\n✅ Done: Output saved to {output_file}")
+print(f"\n✅ Done: Main output saved to {output_file}")
