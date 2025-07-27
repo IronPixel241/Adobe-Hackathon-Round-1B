@@ -9,18 +9,18 @@ import datetime
 # --- Input JSON ---
 input_data = {
     "challenge_info": {
-        "challenge_id": "round_1b_recipes_final",
-        "test_case_name": "extract_recipes_refined",
+        "challenge_id": "round_1b_generalized",
+        "test_case_name": "generalized_extraction",
+    },
+     "persona": {
+        "role": "ML Researcher"
+    },
+    "job_to_be_done": {
+        "task": "extract knowledge about the various Machine Learning (ML), segmentation, and other techniques used in the content of research papers and journals"
     },
     "documents": [
-        {"filename": "Breakfast Ideas.pdf"}, {"filename": "Dinner Ideas - Mains_1.pdf"},
-        {"filename": "Dinner Ideas - Mains_2.pdf"}, {"filename": "Dinner Ideas - Mains_3.pdf"},
-        {"filename": "Dinner Ideas - Sides_1.pdf"}, {"filename": "Dinner Ideas - Sides_2.pdf"},
-        {"filename": "Dinner Ideas - Sides_3.pdf"}, {"filename": "Dinner Ideas - Sides_4.pdf"},
-        {"filename": "Lunch Ideas.pdf"}
-    ],
-    "persona": { "role": "Food Contractor" },
-    "job_to_be_done": { "task": "Prepare a vegetarian buffet-style dinner menu for a corporate gathering, including gluten-free items." }
+        {"filename": "IPCV_paper.pdf"}
+    ]
 }
 
 # --- Utility Functions ---

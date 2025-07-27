@@ -11,47 +11,20 @@ import datetime
 
 input_data = {
     "challenge_info": {
-        "challenge_id": "round_1b_002",
-        "test_case_name": "travel_planner",
-        "description": "France Travel"
+        "challenge_id": "round_1b_generalized",
+        "test_case_name": "generalized_extraction",
     },
-    "documents": [
-        {
-            "filename": "South of France - Cities.pdf",
-            "title": "South of France - Cities"
-        },
-        {
-            "filename": "South of France - Cuisine.pdf",
-            "title": "South of France - Cuisine"
-        },
-        {
-            "filename": "South of France - History.pdf",
-            "title": "South of France - History"
-        },
-        {
-            "filename": "South of France - Restaurants and Hotels.pdf",
-            "title": "South of France - Restaurants and Hotels"
-        },
-        {
-            "filename": "South of France - Things to Do.pdf",
-            "title": "South of France - Things to Do"
-        },
-        {
-            "filename": "South of France - Tips and Tricks.pdf",
-            "title": "South of France - Tips and Tricks"
-        },
-        {
-            "filename": "South of France - Traditions and Culture.pdf",
-            "title": "South of France - Traditions and Culture"
-        }
-    ],
-    "persona": {
-        "role": "Travel Planner"
+     "persona": {
+        "role": "ML Researcher"
     },
     "job_to_be_done": {
-        "task": "Plan a trip of 4 days for a group of 10 college friends."
-    }
+        "task": "extract knowledge about the various Machine Learning (ML), segmentation, and other techniques used in the content of research papers and journals"
+    },
+    "documents": [
+        {"filename": "IPCV_paper.pdf"}
+    ]
 }
+
 
 
 

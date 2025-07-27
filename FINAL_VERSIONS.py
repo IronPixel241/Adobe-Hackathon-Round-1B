@@ -6,138 +6,163 @@ import re
 from sentence_transformers import SentenceTransformer, util
 import datetime
 
-# --- INPUT TEST CASE ---
-# This hybrid code is designed to work across all test cases.
+# --- INPUT TEST CASE: Swap this out to test different scenarios ---
+# You can replace this with the "ML Researcher" or other test cases.
+
 input_data = {
     "challenge_info": {
-        "challenge_id": "round_1b_hybrid",
-        "test_case_name": "hybrid_extraction",
+        "challenge_id": "round_1b_002",
+        "test_case_name": "travel_planner",
+        "description": "France Travel"
     },
-     "documents": [
-        {"filename": "Breakfast Ideas.pdf"},
-        {"filename": "Dinner Ideas - Mains_1.pdf"},
-        {"filename": "Dinner Ideas - Mains_2.pdf"},
-        {"filename": "Dinner Ideas - Mains_3.pdf"},
-        {"filename": "Dinner Ideas - Sides_1.pdf"},
-        {"filename": "Dinner Ideas - Sides_2.pdf"},
-        {"filename": "Dinner Ideas - Sides_3.pdf"},
-        {"filename": "Dinner Ideas - Sides_4.pdf"},
-        {"filename": "Lunch Ideas.pdf"}
+    "documents": [
+        {
+            "filename": "South of France - Cities.pdf",
+            "title": "South of France - Cities"
+        },
+        {
+            "filename": "South of France - Cuisine.pdf",
+            "title": "South of France - Cuisine"
+        },
+        {
+            "filename": "South of France - History.pdf",
+            "title": "South of France - History"
+        },
+        {
+            "filename": "South of France - Restaurants and Hotels.pdf",
+            "title": "South of France - Restaurants and Hotels"
+        },
+        {
+            "filename": "South of France - Things to Do.pdf",
+            "title": "South of France - Things to Do"
+        },
+        {
+            "filename": "South of France - Tips and Tricks.pdf",
+            "title": "South of France - Tips and Tricks"
+        },
+        {
+            "filename": "South of France - Traditions and Culture.pdf",
+            "title": "South of France - Traditions and Culture"
+        }
     ],
-    "persona": { "role": "Food Contractor" },
-    "job_to_be_done": { "task": "Prepare a vegetarian buffet-style dinner menu for a corporate gathering, including gluten-free items." }
+    "persona": {
+        "role": "Travel Planner"
+    },
+    "job_to_be_done": {
+        "task": "Plan a trip of 4 days for a group of 10 college friends."
+    }
 }
+
+
+
 
 # --- CONFIGURATION ---
 TITLE_WEIGHT = 0.3
 CONTENT_WEIGHT = 0.7
 MIN_RELEVANCE_SCORE = 0.2
 MIN_WORDS_FOR_SUMMARY_SENTENCE = 5
-MAX_HEADING_PERCENTAGE = 0.05
+# The percentile of scores to use as the dynamic threshold for heading detection
+HEADING_SCORE_PERCENTILE = 95
 
-# --- HYBRID EXTRACTION LOGIC ---
+# --- UTILITY FUNCTIONS ---
 
-def extract_recipe_sections(pages_text, doc_name):
-    """Specialized extractor for documents with a clear 'Title' -> 'Ingredients' structure."""
-    sections = []
-    full_text = "\n".join([text for _, text in pages_text])
-    # Regex to split text by a Title followed by "Ingredients:" on a new line
-    recipe_blocks = re.split(r'\n(?=[A-Z][a-z]+(?: [A-Z][a-z]+)*\nIngredients:)', full_text)
-
-    for block in recipe_blocks:
-        lines = block.strip().split('\n')
-        if not lines or "Ingredients" not in block:
-            continue
-        title_candidate = lines[0].strip()
-        page_num = 1
-        for p_num, p_text in pages_text:
-            if title_candidate in p_text:
-                page_num = p_num
-                break
-        sections.append({"document": doc_name, "section_title": title_candidate, "content": block, "page_number": page_num})
-    return sections
-
-def score_line_as_heading(line):
-    """Scores a line based on how likely it is to be a main heading in a general document."""
-    stripped = line.strip()
-    words = stripped.split()
-    if not 2 <= len(words) <= 12 or stripped.endswith(('.', ',', ':', ';')) or ',' in stripped:
-        return 0
-    score = 0
-    if stripped.isupper(): score += 3
-    if stripped.istitle(): score += 2
-    if re.match(r'^([IVXLCDM]+\.|[A-Z]\.)', stripped): score += 2
-    return max(0, score)
-
-def extract_dynamic_h1_sections(pages_text, doc_name):
-    """General-purpose extractor using dynamic scoring for formal documents."""
-    all_lines = []
-    total_line_count = 0
-    for page_num, text in pages_text:
-        lines = text.split('\n')
-        for line_num, line_content in enumerate(lines):
-            if line_content.strip():
-                all_lines.append({"text": line_content.strip(), "page": page_num, "line_num": line_num, "score": score_line_as_heading(line_content)})
-        total_line_count += len(lines)
-
-    all_lines.sort(key=lambda x: x['score'], reverse=True)
-    num_headings_to_keep = int(total_line_count * MAX_HEADING_PERCENTAGE)
-    top_headings = [line for line in all_lines if line['score'] > 2][:num_headings_to_keep]
-    top_headings.sort(key=lambda x: (x['page'], x['line_num']))
-
-    if not top_headings:
-        full_content = " ".join([text for _, text in pages_text])
-        return [{"document": doc_name, "section_title": "Full Document", "content": full_content, "page_number": 1}]
-
-    sections = []
-    content_accumulator = ""
-    # Simplified section building for dynamic headings
-    full_content_string = " ".join(text for _, text in pages_text)
-    for i, heading in enumerate(top_headings):
-        start_index = full_content_string.find(heading['text'])
-        end_index = -1
-        if i + 1 < len(top_headings):
-            next_heading = top_headings[i+1]
-            end_index = full_content_string.find(next_heading['text'], start_index)
-        
-        section_content = full_content_string[start_index:end_index].strip()
-        sections.append({"document": doc_name, "section_title": heading['text'], "content": section_content, "page_number": heading['page']})
-    return sections
-
-def extract_sections_hybrid(pages_text, doc_name):
-    """(NEW) Intelligently chooses the best extraction method."""
-    recipe_sections = extract_recipe_sections(pages_text, doc_name)
-    # If the recipe extractor finds at least 2 recipes, trust it.
-    if len(recipe_sections) > 1:
-        print(f"INFO: Detected recipe format for '{doc_name}'. Using specialized parser.")
-        return recipe_sections
-    else:
-        # Otherwise, fall back to the general-purpose dynamic H1 parser.
-        print(f"INFO: Recipe format not detected for '{doc_name}'. Using dynamic H1 parser.")
-        return extract_dynamic_h1_sections(pages_text, doc_name)
-
-
-# --- OTHER UTILITY FUNCTIONS ---
-
-def get_refined_summary(section_content, model, job_embedding, top_k=3):
-    """General-purpose summarizer."""
-    sentences = re.split(r'(?<=[.!?])\s+', section_content)
-    meaningful_sentences = [s for s in sentences if len(s.split()) >= MIN_WORDS_FOR_SUMMARY_SENTENCE]
-    if not meaningful_sentences: return section_content
-    sentence_embeddings = model.encode(meaningful_sentences, convert_to_tensor=True)
-    similarities = util.cos_sim(job_embedding, sentence_embeddings)[0]
-    top_indices = np.argsort(-similarities)[:top_k]
-    top_indices.sort()
-    summary = " ".join([meaningful_sentences[idx].strip() for idx in top_indices])
-    return summary if summary else section_content
-    
 def extract_pdf_text_by_page(filename):
-    """Extracts text from a PDF."""
     if not os.path.isfile(filename): return []
     try:
         with fitz.open(filename) as doc:
             return [(i + 1, page.get_text("text")) for i, page in enumerate(doc)]
     except Exception as e: return []
+
+def score_line_as_heading(line):
+    """Assigns a 'heading potential' score to a line of text."""
+    stripped = line.strip()
+    words = stripped.split()
+    word_count = len(words)
+
+    if not stripped or word_count > 10: return 0
+    if stripped.endswith(('.', ',', ':', ';')) or ',' in stripped: return 0
+    if words and words[0].islower(): return 0
+    
+    score = 0
+    if 1 <= word_count <= 5: score += 2 # Short lines are good candidates
+    if stripped.istitle(): score += 3
+    if stripped.isupper() and word_count > 1: score += 4 # ALL CAPS is a strong signal
+    if re.match(r'^([IVXLCDM]+\.|[A-Z]\.)', stripped): score += 5 # Academic style is very strong
+
+    return score
+
+def extract_dynamic_sections(pages_text, doc_name):
+    """Dynamically identifies main headings by analyzing all lines in the document."""
+    line_profiles = []
+    for page_num, text in pages_text:
+        for line_num, line in enumerate(text.split('\n')):
+            stripped_line = line.strip()
+            if stripped_line:
+                line_profiles.append({
+                    "text": stripped_line, "page": page_num, "line_num": line_num,
+                    "score": score_line_as_heading(stripped_line)
+                })
+
+    if not line_profiles: return []
+
+    scores = [p['score'] for p in line_profiles if p['score'] > 0]
+    if not scores: # If no line scores above 0, treat as a single section
+        full_content = " ".join(p['text'] for p in line_profiles)
+        return [{"document": doc_name, "section_title": "Full Document", "content": full_content, "page_number": 1}]
+
+    # Calculate the dynamic threshold based on the score distribution
+    dynamic_threshold = np.percentile(scores, HEADING_SCORE_PERCENTILE)
+    
+    # Select only the lines that meet our dynamic criteria for a heading
+    headings = [p for p in line_profiles if p['score'] >= dynamic_threshold and p['score'] > 0]
+    headings.sort(key=lambda x: (x['page'], x['line_num'])) # Ensure document order
+
+    if not headings:
+        full_content = " ".join(p['text'] for p in line_profiles)
+        return [{"document": doc_name, "section_title": "Full Document", "content": full_content, "page_number": 1}]
+
+    # Reconstruct the document content around the confirmed headings
+    sections = []
+    for i, heading in enumerate(headings):
+        start_page = heading['page']
+        start_line = heading['line_num']
+        
+        # Find the end of the section (where the next heading starts)
+        end_page = len(pages_text) + 1
+        end_line = float('inf')
+        if i + 1 < len(headings):
+            next_heading = headings[i+1]
+            end_page = next_heading['page']
+            end_line = next_heading['line_num']
+        
+        content = []
+        for p_num, p_text in pages_text:
+            if start_page <= p_num <= end_page:
+                lines = p_text.split('\n')
+                for l_num, line in enumerate(lines):
+                    is_after_start = p_num > start_page or (p_num == start_page and l_num > start_line)
+                    is_before_end = p_num < end_page or (p_num == end_page and l_num < end_line)
+                    if is_after_start and is_before_end:
+                        content.append(line)
+        
+        sections.append({
+            "document": doc_name, "section_title": heading['text'],
+            "content": " ".join(content).strip(), "page_number": start_page
+        })
+        
+    return sections
+
+def get_refined_summary(section_content, model, job_embedding, top_k=3):
+    """General-purpose summarizer."""
+    sentences = re.split(r'(?<=[.!?])\s+', section_content)
+    meaningful_sentences = [s.strip() for s in sentences if len(s.split()) >= MIN_WORDS_FOR_SUMMARY_SENTENCE]
+    if not meaningful_sentences: return section_content
+    sentence_embeddings = model.encode(meaningful_sentences, convert_to_tensor=True)
+    similarities = util.cos_sim(job_embedding, sentence_embeddings)[0]
+    top_indices = np.argsort(-similarities)[:top_k]
+    top_indices.sort()
+    summary = " ".join([meaningful_sentences[idx] for idx in top_indices])
+    return summary if summary else section_content
 
 
 # --- MAIN PROCESSING LOGIC ---
@@ -145,16 +170,14 @@ model = SentenceTransformer('all-MiniLM-L6-v2')
 job_text = input_data["job_to_be_done"]["task"]
 job_embedding = model.encode(job_text, convert_to_tensor=True)
 
-# (MODIFIED) Using the new HYBRID section extractor
 all_sections = []
 for doc in input_data["documents"]:
     pages_text = extract_pdf_text_by_page(doc["filename"])
     if pages_text:
-        all_sections.extend(extract_sections_hybrid(pages_text, doc["filename"]))
+        all_sections.extend(extract_dynamic_sections(pages_text, doc["filename"]))
 
-# The rest of the pipeline remains the same
 if not all_sections:
-    print("❌ No sections could be extracted. Exiting.")
+    print("❌ No valid sections could be extracted. Exiting.")
     exit()
 
 titles = [sec["section_title"] for sec in all_sections]
@@ -197,4 +220,4 @@ output_file = f"output_{input_data['challenge_info']['test_case_name']}.json"
 with open(output_file, "w", encoding='utf-8') as f:
     json.dump(output, f, indent=4)
 
-print(f"\n✅ Done: Hybrid extraction output saved to {output_file}")
+print(f"\n✅ Done: Output saved to {output_file}")
