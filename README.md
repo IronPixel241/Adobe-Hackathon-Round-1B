@@ -1,46 +1,179 @@
-🚀 Adobe Hackathon 2025 - Persona-Driven Document Intelligence
-This project is a persona-driven document intelligence system built for the "Connecting the Dots" Hackathon. It analyzes a collection of PDF documents to extract and rank the most relevant sections based on a user's role and specific task.
+# 🚀 Adobe Hackathon 2025 – Persona-Driven Document Intelligence
 
-✨ Key Features
-🧠 Hybrid AI Approach: Combines the speed and breadth of semantic vector search with the deep comprehension of a lightweight LLM for state-of-the-art relevance ranking.
+This project was developed for **Round 1B** of the [Adobe “Connecting the Dots” Hackathon](https://github.com/jhaaj08/Adobe-India-Hackathon25). It transforms static PDF documents into an intelligent assistant tailored to specific personas and tasks.
 
-⚡ Performance-Aware Logic: Intelligently applies the most computationally expensive LLM checks only to the top-ranked candidates, ensuring the solution stays well within the strict 60-second execution limit.
+---
 
-📄 Dynamic Document Parsing: Utilizes a custom scoring algorithm to identify document structure, making the solution robust and adaptable to PDFs without relying on brittle rules like font size.
+## 📌 Problem Statement
 
-⚙️ Approach Explanation
-Our system follows a multi-stage process to deliver highly relevant, persona-driven insights:
+Given a **collection of related PDFs**, a **persona** (e.g., Researcher, Student, Analyst), and a **specific job-to-be-done**, the system intelligently:
+- Extracts and segments the documents into meaningful sections
+- Ranks sections based on semantic relevance
+- Applies lightweight LLM verification to ensure alignment with the task
+- Outputs structured JSON with ranked sections and refined content
 
-Section Extraction: We first parse text from each PDF using the PyMuPDF library. A custom scoring algorithm then analyzes text characteristics (e.g., title case, length, structure) to dynamically segment the documents into logical sections and subsections.
+---
 
-Semantic Ranking: We employ the all-MiniLM-L6-v2 sentence-transformer model to generate vector embeddings for the persona's job description, as well as for the title and content of every extracted section. By calculating the cosine similarity, we produce a ranked list of all sections based on their semantic relevance to the user's task.
+## ✨ Key Features
 
-Intelligent Verification: To refine the top results without sacrificing performance, a lightweight LLM (google/flan-t5-small) performs a final verification step. To remain fast, this check is only applied to the Top 20 semantically-ranked sections. It acts as an expert reviewer, confirming their alignment with the user's goal and filtering out any nuanced mismatches.
+### 🧠 Hybrid AI Architecture
+- **Vector Embedding (Fast Retrieval)**: Uses `all-MiniLM-L6-v2` (≤90MB) to perform semantic search across all document sections.
+- **LLM Verification (Deep Understanding)**: Uses `google/flan-t5-small` (≈100MB) as a fast, local verifier for top 20 candidates only.
 
-This hybrid strategy ensures our solution is not only accurate and intelligent but also fully compliant with the hackathon's offline and performance constraints.
+### ⚡ Performance-Aware Pipeline
+- Smartly balances speed and intelligence within the strict **60-second** offline runtime limit.
+- Applies LLM only to most promising sections to save time and compute.
 
-🛠️ Libraries and Models Used
-Libraries: PyMuPDF, NumPy, Sentence-Transformers, PyTorch (CPU), Transformers
+### 📄 Robust Section Segmentation
+- Dynamically segments PDFs into logical sections using:
+  - Title case detection
+  - Heuristics on line length, indentation, and structure
+  - No reliance on font size or brittle PDF rules
 
-Retrieval Model: all-MiniLM-L6-v2
+---
 
-LLM Model: google/flan-t5-small
+## 🛠️ Tech Stack
 
-🚀 How to Build and Run
-1. Build the Docker Image
-From the root directory of the project, run the following command:
+| Component              | Description                                  |
+|------------------------|----------------------------------------------|
+| 📚 Libraries           | `PyMuPDF`, `sentence-transformers`, `NumPy`, `torch`, `transformers` |
+| 🔍 Embedding Model     | `all-MiniLM-L6-v2` (via sentence-transformers) |
+| 🤖 Lightweight LLM     | `google/flan-t5-small` (via HuggingFace Transformers) |
+| 🐳 Containerization    | Docker (CPU-only, offline, amd64-compatible)  |
 
-Bash
+---
 
-docker build -t my-adobe-solution:1b .
-2. Run the Container
-Place your input PDFs and input.json file into a local directory (e.g., ./local_input). Create an empty local output directory (e.g., ./local_output). Then, run the container using the specified command format:
+## 📂 Directory Structure
 
-Bash
+```
+├── input/                  # Place all input PDFs and input.json here
+├── output/                 # Results (JSON) will be generated here
+├── app/
+│   ├── segmenter.py        # Section detection and parsing logic
+│   ├── ranker.py           # Semantic ranking using vector search
+│   ├── verifier.py         # LLM-based final verification
+│   └── main.py             # Pipeline orchestration
+├── models/                 # Cached sentence-transformers and LLM models
+├── Dockerfile              # Dockerfile to containerize the solution
+├── requirements.txt
+└── README.md               # (You're reading it!)
+```
 
-docker run --rm \
-  -v "$(pwd)/local_input:/app/input" \
-  -v "$(pwd)/local_output:/app/output" \
-  --network none \
-  my-adobe-solution:1b
-The results will be generated in local_output/result.json.
+---
+
+## 🧪 How It Works
+
+### Step-by-Step Approach:
+
+1. **Section Extraction**
+   - All PDFs in the `input/` folder are parsed using `PyMuPDF`.
+   - A custom heuristic algorithm splits text into titles, sections, and subsections.
+
+2. **Semantic Ranking**
+   - Persona and job-to-be-done are embedded into vectors.
+   - Each section’s title and content is vectorized and compared using **cosine similarity**.
+
+3. **LLM Verification**
+   - Top 20 semantically relevant sections are passed through `flan-t5-small`.
+   - LLM ensures they logically fit the persona’s needs (e.g., "Is this relevant for a Chemistry student preparing for kinetics?").
+
+4. **Output Generation**
+   - A structured JSON is written to the `output/` directory in the required format (matching `challenge1b_output.json`).
+
+---
+
+## 🚀 Quick Start
+
+### 🐳 Build Docker Image
+
+```bash
+docker build -t persona-doc-intel:1b .
+```
+
+### ▶️ Run the Container
+
+```bash
+docker run --rm   -v "$(pwd)/input:/app/input"   -v "$(pwd)/output:/app/output"   --network none   persona-doc-intel:1b
+```
+
+> 📌 This will generate `result.json` or `{filename}.json` inside the `output/` folder.
+
+---
+
+## 📥 Input Format
+
+**input/input.json** (example):
+
+```json
+{
+  "persona": "Undergraduate Chemistry Student",
+  "job": "Identify key concepts and mechanisms for exam preparation on reaction kinetics"
+}
+```
+
+**input/** also contains PDFs:
+```
+input/
+├── input.json
+├── Organic_Chemistry_Chapter1.pdf
+├── Organic_Chemistry_Chapter2.pdf
+└── ...
+```
+
+---
+
+## 📤 Output Format
+
+```json
+{
+  "metadata": {
+    "documents": ["Organic_Chemistry_Chapter1.pdf", ...],
+    "persona": "Undergraduate Chemistry Student",
+    "job": "Identify key concepts and mechanisms for exam preparation on reaction kinetics",
+    "timestamp": "2025-07-27T17:35:10Z"
+  },
+  "extracted_sections": [
+    {
+      "document": "Organic_Chemistry_Chapter1.pdf",
+      "page_number": 5,
+      "section_title": "Reaction Kinetics: Overview",
+      "importance_rank": 1
+    }
+    ...
+  ],
+  "sub_section_analysis": [
+    {
+      "document": "Organic_Chemistry_Chapter1.pdf",
+      "refined_text": "This section explains the rate-determining steps...",
+      "page_number": 5
+    }
+  ]
+}
+```
+
+---
+
+## 🧾 Constraints Met
+
+| Constraint               | Status       |
+|--------------------------|--------------|
+| ⏱️ Execution Time        | ≤ 60 sec     |
+| 📦 Model Size            | ≤ 1GB        |
+| ❌ No Internet Required  | ✅ Fully offline |
+| 💻 CPU Only              | ✅ Supported |
+| 🔄 Multidocument Support | ✅ 3–10 PDFs |
+
+---
+
+## 📚 Reference
+
+- [Sentence-Transformers](https://www.sbert.net/)
+- [Flan-T5 Small on HuggingFace](https://huggingface.co/google/flan-t5-small)
+- Adobe Challenge Docs: [PDF Brief](https://github.com/jhaaj08/Adobe-India-Hackathon25)
+
+---
+
+## 🏁 Final Notes
+
+> This solution is designed to generalize well across different domains (academic, financial, educational, etc.).  
+> All models are local and efficient, making the system fully compliant with Adobe’s hackathon constraints.
