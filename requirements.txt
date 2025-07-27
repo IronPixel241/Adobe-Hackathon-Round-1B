@@ -1,6 +1,6 @@
-pymupdf
-scikit-learn 
-transformers 
-torch 
 numpy
+sentence-transformers
+torch --extra-index-url https://download.pytorch.org/whl/cpu
+transformers
+PyMuPDF
 accelerate

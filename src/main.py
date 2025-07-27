@@ -9,19 +9,24 @@ import time
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 
+# --- Define Input/Output Paths for Docker Compliance ---
+INPUT_DIR = "/app/input"
+OUTPUT_DIR = "/app/output"
+
 # --- DICTIONARY TO STORE TIMING RESULTS ---
 processing_times = {}
 
 # --- START OF TIMED OPERATIONS ---
 main_start_time = time.perf_counter()
 
-# --- LOAD INPUT FROM A JSON FILE ---
+# --- LOAD INPUT FROM A JSON FILE (MODIFIED) ---
 start_time = time.perf_counter()
+input_json_path = os.path.join(INPUT_DIR, "input.json")
 try:
-    with open("input.json", "r", encoding='utf-8') as f:
+    with open(input_json_path, "r", encoding='utf-8') as f:
         input_data = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError) as e:
-    print(f"❌ Error reading input.json: {e}")
+    print(f"❌ Error reading {input_json_path}: {e}")
     exit()
 processing_times["input_loading_s"] = time.perf_counter() - start_time
 
@@ -41,12 +46,16 @@ LLM_MODEL_NAME = "google/flan-t5-small"
 # --- UTILITY FUNCTIONS ---
 
 def extract_pdf_text_by_page(filename):
-    """ (MODIFIED) Reverted to original, reliable text extraction. """
-    if not os.path.isfile(filename): return []
+    """ Extracts text from a PDF file, page by page. """
+    if not os.path.isfile(filename): 
+        print(f"❌ PDF file not found at: {filename}")
+        return []
     try:
         with fitz.open(filename) as doc:
             return [(i + 1, page.get_text("text")) for i, page in enumerate(doc)]
-    except Exception as e: return []
+    except Exception as e: 
+        print(f"❌ Could not process PDF {filename}: {e}")
+        return []
 
 def score_line_as_heading(line):
     stripped = line.strip()
@@ -81,13 +90,12 @@ def extract_dynamic_sections(pages_text, doc_name):
         start_page, start_line = heading['page'], heading['line_num']
         end_page, end_line = (headings[i+1]['page'], headings[i+1]['line_num']) if i + 1 < len(headings) else (len(pages_text) + 1, float('inf'))
         content = [line for p_num, p_text in pages_text if start_page <= p_num <= end_page 
-                   for l_num, line in enumerate(p_text.split('\n')) 
-                   if (p_num > start_page or l_num > start_line) and (p_num < end_page or l_num < end_line)]
+                      for l_num, line in enumerate(p_text.split('\n')) 
+                      if (p_num > start_page or l_num > start_line) and (p_num < end_page or l_num < end_line)]
         sections.append({"document": doc_name, "section_title": heading['text'], "content": "\n".join(content).strip(), "page_number": start_page})
     return sections
 
 def get_refined_summary(section_content, model, job_embedding, top_k=3):
-    # (MODIFIED) Clean the text just before creating the summary
     cleaned_content = re.sub(r'\s+', ' ', section_content)
     cleaned_content = re.sub(r'[\u2022\uf0b7\uf06f]', '', cleaned_content)
 
@@ -107,16 +115,17 @@ def get_refined_summary(section_content, model, job_embedding, top_k=3):
 print("INFO: Loading models...")
 start_time = time.perf_counter()
 retrieval_model = SentenceTransformer(RETRIEVAL_MODEL_NAME)
-llm_pipeline = pipeline("text2text-generation", model=LLM_MODEL_NAME, tokenizer=LLM_MODEL_NAME, device=-1)
+llm_pipeline = pipeline("text2text-generation", model=LLM_MODEL_NAME, tokenizer=LLM_MODEL_NAME, device=-1) # CPU device
 processing_times["model_loading_s"] = time.perf_counter() - start_time
 
-# 2. Extract Sections
+# 2. Extract Sections (MODIFIED)
 job_text = input_data["job_to_be_done"]["task"]
 job_embedding = retrieval_model.encode(job_text, convert_to_tensor=True)
 all_sections = []
 start_time = time.perf_counter()
 for doc in input_data["documents"]:
-    pages_text = extract_pdf_text_by_page(doc["filename"])
+    pdf_path = os.path.join(INPUT_DIR, doc["filename"]) # Correctly path the PDF
+    pages_text = extract_pdf_text_by_page(pdf_path)
     if pages_text:
         all_sections.extend(extract_dynamic_sections(pages_text, doc["filename"]))
 processing_times["pdf_parsing_and_sectioning_s"] = time.perf_counter() - start_time
@@ -157,46 +166,21 @@ for idx in ranked_indices:
 
     content_snippet = " ".join(section['content'].split()[:150])
     
-    prompt = f"Does the following text violate the user's goal by containing meat, poultry, or fish? Goal: \"{job_text}\" Text: \"{section['section_title']}. {content_snippet}\" Answer only with 'Yes' or 'No'."
+    # This prompt is specific to a "vegetarian meal planning" job.
+    # For a general solution, this should be more abstract or removed.
+    prompt = f"Does the following text relate to the user's goal? Goal: \"{job_text}\" Text: \"{section['section_title']}. {content_snippet}\" Answer only with 'Yes' or 'No'."
     
     is_compliant = False
     try:
+        # Simplified logic for compliance check
         outputs = llm_pipeline(prompt, max_new_tokens=3)
         answer = outputs[0]['generated_text'].strip().lower()
-        if 'no' in answer:
+        if 'yes' in answer: # Assuming 'yes' means it's relevant and compliant
             is_compliant = True
     except Exception:
-        is_compliant = False
+        # Fallback to true if LLM fails, relying on semantic search
+        is_compliant = True 
     
     if is_compliant:
-        # (MODIFIED) Clean the title just before adding it to the output
         clean_title = re.sub(r'^[\W_]+', '', section["section_title"]).strip()
-        
-        # Ensure title is not empty after cleaning
-        if not clean_title:
-            continue
-
-        output["extracted_sections"].append({
-            "document": section["document"], "section_title": clean_title,
-            "importance_rank": final_rank, "page_number": section["page_number"]
-        })
-        refined_text = get_refined_summary(section["content"], retrieval_model, job_embedding)
-        output["subsection_analysis"].append({
-            "document": section["document"], "page_number": section["page_number"],
-            "refined_text": refined_text
-        })
-        final_rank += 1
-
-processing_times["llm_verification_s"] = time.perf_counter() - start_time
-        
-# --- Finalize and Save ---
-processing_times["total_runtime_s"] = time.perf_counter() - main_start_time
-
-with open("processing_results.json", "w", encoding='utf-8') as f:
-    json.dump(processing_times, f, indent=4)
-print(f"\n📊 Performance metrics saved to processing_results.json")
-
-output_file = f"output_{input_data['challenge_info']['test_case_name']}.json"
-with open(output_file, "w", encoding='utf-8') as f:
-    json.dump(output, f, indent=4)
-print(f"✅ Done: Main output saved to {output_file}")
+        if not clean
