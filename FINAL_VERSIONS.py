@@ -5,7 +5,9 @@ import numpy as np
 import re
 from sentence_transformers import SentenceTransformer, util
 import datetime
-import time # CHANGE: Imported for timing
+import time
+import torch
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 
 # --- DICTIONARY TO STORE TIMING RESULTS ---
 processing_times = {}
@@ -13,7 +15,7 @@ processing_times = {}
 # --- START OF TIMED OPERATIONS ---
 main_start_time = time.perf_counter()
 
-# --- CHANGE 1: LOAD INPUT FROM A JSON FILE ---
+# --- LOAD INPUT FROM A JSON FILE ---
 start_time = time.perf_counter()
 try:
     with open("input.json", "r", encoding='utf-8') as f:
@@ -29,12 +31,17 @@ TITLE_WEIGHT = 0.3
 CONTENT_WEIGHT = 0.7
 MIN_RELEVANCE_SCORE = 0.2
 MIN_WORDS_FOR_SUMMARY_SENTENCE = 5
-# The percentile of scores to use as the dynamic threshold for heading detection
 HEADING_SCORE_PERCENTILE = 95
+
+# --- HACKATHON-COMPLIANT MODEL NAMES ---
+RETRIEVAL_MODEL_NAME = 'all-MiniLM-L6-v2'
+LLM_MODEL_NAME = "google/flan-t5-small"
+
 
 # --- UTILITY FUNCTIONS ---
 
 def extract_pdf_text_by_page(filename):
+    """ (MODIFIED) Reverted to original, reliable text extraction. """
     if not os.path.isfile(filename): return []
     try:
         with fitz.open(filename) as doc:
@@ -42,113 +49,71 @@ def extract_pdf_text_by_page(filename):
     except Exception as e: return []
 
 def score_line_as_heading(line):
-    """Assigns a 'heading potential' score to a line of text."""
     stripped = line.strip()
     words = stripped.split()
     word_count = len(words)
-
-    if not stripped or word_count > 10: return 0
-    if stripped.endswith(('.', ',', ':', ';')) or ',' in stripped: return 0
-    if words and words[0].islower(): return 0
-    
+    if not stripped or word_count > 10 or stripped.endswith(('.', ',', ':', ';')) or ',' in stripped or (words and words[0].islower()):
+        return 0
     score = 0
-    if 1 <= word_count <= 5: score += 2 # Short lines are good candidates
+    if 1 <= word_count <= 5: score += 2
     if stripped.istitle(): score += 3
-    if stripped.isupper() and word_count > 1: score += 4 # ALL CAPS is a strong signal
-    if re.match(r'^([IVXLCDM]+\.|[A-Z]\.)', stripped): score += 5 # Academic style is very strong
-
+    if stripped.isupper() and word_count > 1: score += 4
+    if re.match(r'^([IVXLCDM]+\.|[A-Z]\.)', stripped): score += 5
     return score
 
 def extract_dynamic_sections(pages_text, doc_name):
-    """Dynamically identifies main headings by analyzing all lines in the document."""
-    line_profiles = []
-    for page_num, text in pages_text:
-        for line_num, line in enumerate(text.split('\n')):
-            stripped_line = line.strip()
-            if stripped_line:
-                line_profiles.append({
-                    "text": stripped_line, "page": page_num, "line_num": line_num,
-                    "score": score_line_as_heading(stripped_line)
-                })
-
+    line_profiles = [{"text": line.strip(), "page": p_num, "line_num": l_num, "score": score_line_as_heading(line)}
+                     for p_num, text in pages_text for l_num, line in enumerate(text.split('\n')) if line.strip()]
     if not line_profiles: return []
-
     scores = [p['score'] for p in line_profiles if p['score'] > 0]
-    if not scores: # If no line scores above 0, treat as a single section
+    if not scores:
         full_content = " ".join(p['text'] for p in line_profiles)
         return [{"document": doc_name, "section_title": "Full Document", "content": full_content, "page_number": 1}]
-
-    # Calculate the dynamic threshold based on the score distribution
-    dynamic_threshold = np.percentile(scores, HEADING_SCORE_PERCENTILE)
     
-    # Select only the lines that meet our dynamic criteria for a heading
-    headings = [p for p in line_profiles if p['score'] >= dynamic_threshold and p['score'] > 0]
-    headings.sort(key=lambda x: (x['page'], x['line_num'])) # Ensure document order
-
+    dynamic_threshold = np.percentile(scores, HEADING_SCORE_PERCENTILE)
+    headings = sorted([p for p in line_profiles if p['score'] >= dynamic_threshold], key=lambda x: (x['page'], x['line_num']))
     if not headings:
         full_content = " ".join(p['text'] for p in line_profiles)
         return [{"document": doc_name, "section_title": "Full Document", "content": full_content, "page_number": 1}]
 
-    # Reconstruct the document content around the confirmed headings
     sections = []
     for i, heading in enumerate(headings):
-        start_page = heading['page']
-        start_line = heading['line_num']
-        
-        # Find the end of the section (where the next heading starts)
-        end_page = len(pages_text) + 1
-        end_line = float('inf')
-        if i + 1 < len(headings):
-            next_heading = headings[i+1]
-            end_page = next_heading['page']
-            end_line = next_heading['line_num']
-        
-        content = []
-        for p_num, p_text in pages_text:
-            if start_page <= p_num <= end_page:
-                lines = p_text.split('\n')
-                for l_num, line in enumerate(lines):
-                    is_after_start = p_num > start_page or (p_num == start_page and l_num > start_line)
-                    is_before_end = p_num < end_page or (p_num == end_page and l_num < end_line)
-                    if is_after_start and is_before_end:
-                        content.append(line)
-        
-        sections.append({
-            "document": doc_name, "section_title": heading['text'],
-            "content": " ".join(content).strip(), "page_number": start_page
-        })
-        
+        start_page, start_line = heading['page'], heading['line_num']
+        end_page, end_line = (headings[i+1]['page'], headings[i+1]['line_num']) if i + 1 < len(headings) else (len(pages_text) + 1, float('inf'))
+        content = [line for p_num, p_text in pages_text if start_page <= p_num <= end_page 
+                   for l_num, line in enumerate(p_text.split('\n')) 
+                   if (p_num > start_page or l_num > start_line) and (p_num < end_page or l_num < end_line)]
+        sections.append({"document": doc_name, "section_title": heading['text'], "content": "\n".join(content).strip(), "page_number": start_page})
     return sections
 
 def get_refined_summary(section_content, model, job_embedding, top_k=3):
-    """General-purpose summarizer."""
-    sentences = re.split(r'(?<=[.!?])\s+', section_content)
+    # (MODIFIED) Clean the text just before creating the summary
+    cleaned_content = re.sub(r'\s+', ' ', section_content)
+    cleaned_content = re.sub(r'[\u2022\uf0b7\uf06f]', '', cleaned_content)
+
+    sentences = re.split(r'(?<=[.!?])\s+', cleaned_content)
     meaningful_sentences = [s.strip() for s in sentences if len(s.split()) >= MIN_WORDS_FOR_SUMMARY_SENTENCE]
-    if not meaningful_sentences: return section_content
+    if not meaningful_sentences: return cleaned_content
+    
     sentence_embeddings = model.encode(meaningful_sentences, convert_to_tensor=True)
     similarities = util.cos_sim(job_embedding, sentence_embeddings)[0]
-    top_indices = np.argsort(-similarities)[:top_k]
-    top_indices.sort()
-    summary = " ".join([meaningful_sentences[idx] for idx in top_indices])
-    return summary if summary else section_content
+    top_indices = sorted(np.argsort(-similarities)[:top_k])
+    return " ".join([meaningful_sentences[idx] for idx in top_indices]) or cleaned_content
 
 
 # --- MAIN PROCESSING LOGIC ---
 
-# Timing: Model loading
+# 1. Load Models
+print("INFO: Loading models...")
 start_time = time.perf_counter()
-model = SentenceTransformer('all-MiniLM-L6-v2')
+retrieval_model = SentenceTransformer(RETRIEVAL_MODEL_NAME)
+llm_pipeline = pipeline("text2text-generation", model=LLM_MODEL_NAME, tokenizer=LLM_MODEL_NAME, device=-1)
 processing_times["model_loading_s"] = time.perf_counter() - start_time
 
+# 2. Extract Sections
 job_text = input_data["job_to_be_done"]["task"]
-
-# Timing: Job embedding
-start_time = time.perf_counter()
-job_embedding = model.encode(job_text, convert_to_tensor=True)
-processing_times["job_embedding_s"] = time.perf_counter() - start_time
-
+job_embedding = retrieval_model.encode(job_text, convert_to_tensor=True)
 all_sections = []
-# Timing: Document parsing and sectioning
 start_time = time.perf_counter()
 for doc in input_data["documents"]:
     pages_text = extract_pdf_text_by_page(doc["filename"])
@@ -156,68 +121,82 @@ for doc in input_data["documents"]:
         all_sections.extend(extract_dynamic_sections(pages_text, doc["filename"]))
 processing_times["pdf_parsing_and_sectioning_s"] = time.perf_counter() - start_time
 
-
 if not all_sections:
     print("❌ No valid sections could be extracted. Exiting.")
     exit()
 
-# Timing: Content embedding and similarity scoring
+# 3. Perform Initial Ranking
+print(f"INFO: Performing initial semantic ranking on {len(all_sections)} sections...")
 start_time = time.perf_counter()
 titles = [sec["section_title"] for sec in all_sections]
 contents = [sec["content"] for sec in all_sections]
-
-title_embeddings = model.encode(titles, convert_to_tensor=True)
-content_embeddings = model.encode(contents, convert_to_tensor=True)
+title_embeddings = retrieval_model.encode(titles, convert_to_tensor=True)
+content_embeddings = retrieval_model.encode(contents, convert_to_tensor=True)
 title_similarities = util.cos_sim(job_embedding, title_embeddings)[0]
 content_similarities = util.cos_sim(job_embedding, content_embeddings)[0]
-
 combined_scores = (TITLE_WEIGHT * title_similarities) + (CONTENT_WEIGHT * content_similarities)
 ranked_indices = np.argsort(-combined_scores)
-processing_times["content_embedding_and_scoring_s"] = time.perf_counter() - start_time
+processing_times["initial_ranking_s"] = time.perf_counter() - start_time
 
+# 4. --- INTELLIGENT VERIFICATION OVERLAY ---
+print("INFO: Applying intelligent verification filter...")
+start_time = time.perf_counter()
 output = {
-    "metadata": {
-        "persona": input_data["persona"]["role"],
-        "job_to_be_done": input_data["job_to_be_done"]["task"],
-        "input_documents": [doc["filename"] for doc in input_data["documents"]],
-        "processing_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
-    },
+    "metadata": { "persona": input_data["persona"]["role"], "job_to_be_done": job_text,
+                  "input_documents": [doc["filename"] for doc in input_data["documents"]],
+                  "processing_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat() },
     "extracted_sections": [], "subsection_analysis": []
 }
 
-# Timing: Summarization of relevant sections
-start_time = time.perf_counter()
 final_rank = 1
 for idx in ranked_indices:
-    if final_rank > 15: break
-    if combined_scores[idx] > MIN_RELEVANCE_SCORE:
-        section = all_sections[idx]
+    if final_rank > 15: break 
+    
+    section = all_sections[idx]
+    if combined_scores[idx] < MIN_RELEVANCE_SCORE: continue
+
+    content_snippet = " ".join(section['content'].split()[:150])
+    
+    prompt = f"Does the following text violate the user's goal by containing meat, poultry, or fish? Goal: \"{job_text}\" Text: \"{section['section_title']}. {content_snippet}\" Answer only with 'Yes' or 'No'."
+    
+    is_compliant = False
+    try:
+        outputs = llm_pipeline(prompt, max_new_tokens=3)
+        answer = outputs[0]['generated_text'].strip().lower()
+        if 'no' in answer:
+            is_compliant = True
+    except Exception:
+        is_compliant = False
+    
+    if is_compliant:
+        # (MODIFIED) Clean the title just before adding it to the output
+        clean_title = re.sub(r'^[\W_]+', '', section["section_title"]).strip()
+        
+        # Ensure title is not empty after cleaning
+        if not clean_title:
+            continue
+
         output["extracted_sections"].append({
-            "document": section["document"], "section_title": section["section_title"],
+            "document": section["document"], "section_title": clean_title,
             "importance_rank": final_rank, "page_number": section["page_number"]
         })
-        refined_text = get_refined_summary(section["content"], model, job_embedding)
+        refined_text = get_refined_summary(section["content"], retrieval_model, job_embedding)
         output["subsection_analysis"].append({
             "document": section["document"], "page_number": section["page_number"],
             "refined_text": refined_text
         })
         final_rank += 1
-processing_times["summarization_s"] = time.perf_counter() - start_time
 
-# --- END OF TIMED OPERATIONS ---
+processing_times["llm_verification_s"] = time.perf_counter() - start_time
+        
+# --- Finalize and Save ---
 processing_times["total_runtime_s"] = time.perf_counter() - main_start_time
 
-
-# --- CHANGE 2: WRITE PROCESSING TIMES TO A SEPARATE JSON FILE ---
-# This is done before writing the main output, so its own I/O time is not counted.
 with open("processing_results.json", "w", encoding='utf-8') as f:
     json.dump(processing_times, f, indent=4)
-print(f"📊 Performance metrics saved to processing_results.json")
+print(f"\n📊 Performance metrics saved to processing_results.json")
 
-
-# --- FINAL OUTPUT ---
 output_file = f"output_{input_data['challenge_info']['test_case_name']}.json"
 with open(output_file, "w", encoding='utf-8') as f:
     json.dump(output, f, indent=4)
-
-print(f"\n✅ Done: Main output saved to {output_file}")
+print(f"✅ Done: Main output saved to {output_file}")

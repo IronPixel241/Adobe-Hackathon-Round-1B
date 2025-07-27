@@ -5,151 +5,198 @@ import numpy as np
 import re
 from sentence_transformers import SentenceTransformer, util
 import datetime
+import time
+import torch
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 
-# --- Input JSON ---
-input_data = {
-    "challenge_info": {
-        "challenge_id": "round_1b_generalized",
-        "test_case_name": "generalized_extraction",
-    },
-     "persona": {
-        "role": "ML Researcher"
-    },
-    "job_to_be_done": {
-        "task": "extract knowledge about the various Machine Learning (ML), segmentation, and other techniques used in the content of research papers and journals"
-    },
-    "documents": [
-        {"filename": "IPCV_paper.pdf"}
-    ]
-}
+# --- DICTIONARY TO STORE TIMING RESULTS ---
+processing_times = {}
 
-# --- Utility Functions ---
+# --- START OF TIMED OPERATIONS ---
+main_start_time = time.perf_counter()
+
+# --- LOAD INPUT FROM A JSON FILE ---
+start_time = time.perf_counter()
+try:
+    with open("input.json", "r", encoding='utf-8') as f:
+        input_data = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError) as e:
+    print(f"❌ Error reading input.json: {e}")
+    exit()
+processing_times["input_loading_s"] = time.perf_counter() - start_time
+
+
+# --- CONFIGURATION ---
+TITLE_WEIGHT = 0.3
+CONTENT_WEIGHT = 0.7
+MIN_RELEVANCE_SCORE = 0.2
+MIN_WORDS_FOR_SUMMARY_SENTENCE = 5
+HEADING_SCORE_PERCENTILE = 95
+
+# --- HACKATHON-COMPLIANT MODEL NAMES ---
+RETRIEVAL_MODEL_NAME = 'all-MiniLM-L6-v2'
+LLM_MODEL_NAME = "google/flan-t5-small"
+
+
+# --- UTILITY FUNCTIONS ---
 
 def extract_pdf_text_by_page(filename):
-    """Extracts text from each page of a PDF."""
-    if not os.path.isfile(filename):
-        print(f"⚠️ File not found: {filename}")
-        return []
+    """ (MODIFIED) Reverted to original, reliable text extraction. """
+    if not os.path.isfile(filename): return []
     try:
         with fitz.open(filename) as doc:
             return [(i + 1, page.get_text("text")) for i, page in enumerate(doc)]
-    except Exception as e:
-        print(f"❌ Failed to extract {filename}: {e}")
-        return []
+    except Exception as e: return []
 
-def extract_recipe_sections(pages_text, doc_name):
-    """A stricter parser that identifies a recipe title and its full content."""
+def score_line_as_heading(line):
+    stripped = line.strip()
+    words = stripped.split()
+    word_count = len(words)
+    if not stripped or word_count > 10 or stripped.endswith(('.', ',', ':', ';')) or ',' in stripped or (words and words[0].islower()):
+        return 0
+    score = 0
+    if 1 <= word_count <= 5: score += 2
+    if stripped.istitle(): score += 3
+    if stripped.isupper() and word_count > 1: score += 4
+    if re.match(r'^([IVXLCDM]+\.|[A-Z]\.)', stripped): score += 5
+    return score
+
+def extract_dynamic_sections(pages_text, doc_name):
+    line_profiles = [{"text": line.strip(), "page": p_num, "line_num": l_num, "score": score_line_as_heading(line)}
+                     for p_num, text in pages_text for l_num, line in enumerate(text.split('\n')) if line.strip()]
+    if not line_profiles: return []
+    scores = [p['score'] for p in line_profiles if p['score'] > 0]
+    if not scores:
+        full_content = " ".join(p['text'] for p in line_profiles)
+        return [{"document": doc_name, "section_title": "Full Document", "content": full_content, "page_number": 1}]
+    
+    dynamic_threshold = np.percentile(scores, HEADING_SCORE_PERCENTILE)
+    headings = sorted([p for p in line_profiles if p['score'] >= dynamic_threshold], key=lambda x: (x['page'], x['line_num']))
+    if not headings:
+        full_content = " ".join(p['text'] for p in line_profiles)
+        return [{"document": doc_name, "section_title": "Full Document", "content": full_content, "page_number": 1}]
+
     sections = []
-    full_text = "\n".join([text for _, text in pages_text])
-    # This regex is a positive lookbehind, splitting the text *after* a potential title.
-    # It assumes a title is followed by a newline and then "Ingredients:".
-    recipe_blocks = re.split(r'(?<=\n)\n(?=[A-Z][a-z]+(?: [A-Z][a-z]+)*\nIngredients:)', full_text)
-
-    for block in recipe_blocks:
-        lines = block.strip().split('\n')
-        if not lines or "Ingredients" not in block:
-            continue
-
-        title_candidate = lines[0].strip()
-        page_num = 1
-        for p_num, p_text in pages_text:
-            if title_candidate in p_text:
-                page_num = p_num
-                break
-        
-        sections.append({
-            "document": doc_name, "section_title": title_candidate,
-            "content": block, "page_number": page_num
-        })
+    for i, heading in enumerate(headings):
+        start_page, start_line = heading['page'], heading['line_num']
+        end_page, end_line = (headings[i+1]['page'], headings[i+1]['line_num']) if i + 1 < len(headings) else (len(pages_text) + 1, float('inf'))
+        content = [line for p_num, p_text in pages_text if start_page <= p_num <= end_page 
+                   for l_num, line in enumerate(p_text.split('\n')) 
+                   if (p_num > start_page or l_num > start_line) and (p_num < end_page or l_num < end_line)]
+        sections.append({"document": doc_name, "section_title": heading['text'], "content": "\n".join(content).strip(), "page_number": start_page})
     return sections
 
-def get_refined_ingredients(section_content):
-    """
-    Extracts only the ingredients list from a recipe section.
-    This is a more targeted refinement for the "Food Contractor" persona.
-    """
-    try:
-        # Find the text between "Ingredients:" and "Instructions:"
-        match = re.search(r'Ingredients:(.*?)Instructions:', section_content, re.DOTALL | re.IGNORECASE)
-        if match:
-            # Clean up the extracted text
-            ingredients_text = match.group(1).strip()
-            # Replace bullet points and clean up newlines
-            cleaned_ingredients = re.sub(r'[\n\uf0b7\u2022]', ' ', ingredients_text).strip()
-            return re.sub(r'\s+', ' ', cleaned_ingredients) # Normalize whitespace
-    except Exception:
-        pass
-    return "Could not isolate ingredients." # Fallback
+def get_refined_summary(section_content, model, job_embedding, top_k=3):
+    # (MODIFIED) Clean the text just before creating the summary
+    cleaned_content = re.sub(r'\s+', ' ', section_content)
+    cleaned_content = re.sub(r'[\u2022\uf0b7\uf06f]', '', cleaned_content)
+
+    sentences = re.split(r'(?<=[.!?])\s+', cleaned_content)
+    meaningful_sentences = [s.strip() for s in sentences if len(s.split()) >= MIN_WORDS_FOR_SUMMARY_SENTENCE]
+    if not meaningful_sentences: return cleaned_content
+    
+    sentence_embeddings = model.encode(meaningful_sentences, convert_to_tensor=True)
+    similarities = util.cos_sim(job_embedding, sentence_embeddings)[0]
+    top_indices = sorted(np.argsort(-similarities)[:top_k])
+    return " ".join([meaningful_sentences[idx] for idx in top_indices]) or cleaned_content
 
 
-# --- Main Processing Logic ---
+# --- MAIN PROCESSING LOGIC ---
 
-# 1. Load Model and Define Query
-model = SentenceTransformer('all-MiniLM-L6-v2')
-job_text = input_data["job_to_be_done"]["task"]
-job_embedding = model.encode(job_text, convert_to_tensor=True)
+# 1. Load Models
+print("INFO: Loading models...")
+start_time = time.perf_counter()
+retrieval_model = SentenceTransformer(RETRIEVAL_MODEL_NAME)
+llm_pipeline = pipeline("text2text-generation", model=LLM_MODEL_NAME, tokenizer=LLM_MODEL_NAME, device=-1)
+processing_times["model_loading_s"] = time.perf_counter() - start_time
 
 # 2. Extract Sections
+job_text = input_data["job_to_be_done"]["task"]
+job_embedding = retrieval_model.encode(job_text, convert_to_tensor=True)
 all_sections = []
+start_time = time.perf_counter()
 for doc in input_data["documents"]:
     pages_text = extract_pdf_text_by_page(doc["filename"])
     if pages_text:
-        all_sections.extend(extract_recipe_sections(pages_text, doc["filename"]))
+        all_sections.extend(extract_dynamic_sections(pages_text, doc["filename"]))
+processing_times["pdf_parsing_and_sectioning_s"] = time.perf_counter() - start_time
 
-# 3. Calculate Relevance and Rank
+if not all_sections:
+    print("❌ No valid sections could be extracted. Exiting.")
+    exit()
+
+# 3. Perform Initial Ranking
+print(f"INFO: Performing initial semantic ranking on {len(all_sections)} sections...")
+start_time = time.perf_counter()
 titles = [sec["section_title"] for sec in all_sections]
 contents = [sec["content"] for sec in all_sections]
-title_embeddings = model.encode(titles, convert_to_tensor=True)
-content_embeddings = model.encode(contents, convert_to_tensor=True)
+title_embeddings = retrieval_model.encode(titles, convert_to_tensor=True)
+content_embeddings = retrieval_model.encode(contents, convert_to_tensor=True)
 title_similarities = util.cos_sim(job_embedding, title_embeddings)[0]
 content_similarities = util.cos_sim(job_embedding, content_embeddings)[0]
-combined_scores = (0.4 * title_similarities) + (0.6 * content_similarities)
+combined_scores = (TITLE_WEIGHT * title_similarities) + (CONTENT_WEIGHT * content_similarities)
 ranked_indices = np.argsort(-combined_scores)
+processing_times["initial_ranking_s"] = time.perf_counter() - start_time
 
-# 4. Build Final Output (with 1-to-1 correspondence)
+# 4. --- INTELLIGENT VERIFICATION OVERLAY ---
+print("INFO: Applying intelligent verification filter...")
+start_time = time.perf_counter()
 output = {
-    "metadata": {
-        "persona": input_data["persona"]["role"],
-        "job_to_be_done": input_data["job_to_be_done"]["task"],
-        "input_documents": [doc["filename"] for doc in input_data["documents"]],
-        "processing_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
-    },
-    "extracted_sections": [],
-    "subsection_analysis": []
+    "metadata": { "persona": input_data["persona"]["role"], "job_to_be_done": job_text,
+                  "input_documents": [doc["filename"] for doc in input_data["documents"]],
+                  "processing_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat() },
+    "extracted_sections": [], "subsection_analysis": []
 }
 
 final_rank = 1
-MIN_RELEVANCE_SCORE = 0.15
-
 for idx in ranked_indices:
-    if final_rank > 15: break # Limit output to top 15 relevant sections
+    if final_rank > 15: break 
+    
+    section = all_sections[idx]
+    if combined_scores[idx] < MIN_RELEVANCE_SCORE: continue
 
-    if combined_scores[idx] > MIN_RELEVANCE_SCORE:
-        section = all_sections[idx]
+    content_snippet = " ".join(section['content'].split()[:150])
+    
+    prompt = f"Does the following text violate the user's goal by containing meat, poultry, or fish? Goal: \"{job_text}\" Text: \"{section['section_title']}. {content_snippet}\" Answer only with 'Yes' or 'No'."
+    
+    is_compliant = False
+    try:
+        outputs = llm_pipeline(prompt, max_new_tokens=3)
+        answer = outputs[0]['generated_text'].strip().lower()
+        if 'no' in answer:
+            is_compliant = True
+    except Exception:
+        is_compliant = False
+    
+    if is_compliant:
+        # (MODIFIED) Clean the title just before adding it to the output
+        clean_title = re.sub(r'^[\W_]+', '', section["section_title"]).strip()
         
-        # Add to extracted_sections
+        # Ensure title is not empty after cleaning
+        if not clean_title:
+            continue
+
         output["extracted_sections"].append({
-            "document": section["document"],
-            "section_title": section["section_title"],
-            "importance_rank": final_rank,
-            "page_number": section["page_number"]
+            "document": section["document"], "section_title": clean_title,
+            "importance_rank": final_rank, "page_number": section["page_number"]
         })
-        
-        # Generate refined text (ingredients only) for this specific section
-        refined_text = get_refined_ingredients(section["content"])
-        
-        # Add to subsection_analysis (one entry per extracted section)
+        refined_text = get_refined_summary(section["content"], retrieval_model, job_embedding)
         output["subsection_analysis"].append({
-            "document": section["document"],
-            "page_number": section["page_number"],
+            "document": section["document"], "page_number": section["page_number"],
             "refined_text": refined_text
         })
-        
         final_rank += 1
 
-# --- Save output JSON ---
+processing_times["llm_verification_s"] = time.perf_counter() - start_time
+        
+# --- Finalize and Save ---
+processing_times["total_runtime_s"] = time.perf_counter() - main_start_time
+
+with open("processing_results.json", "w", encoding='utf-8') as f:
+    json.dump(processing_times, f, indent=4)
+print(f"\n📊 Performance metrics saved to processing_results.json")
+
 output_file = f"output_{input_data['challenge_info']['test_case_name']}.json"
 with open(output_file, "w", encoding='utf-8') as f:
     json.dump(output, f, indent=4)
-
-print(f"\n✅ Done: {output_file} generated with refined, 1-to-1 analysis.")
+print(f"✅ Done: Main output saved to {output_file}")
